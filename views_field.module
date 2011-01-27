@@ -56,9 +56,6 @@ function views_field_field_views_data_alter(&$data, $field, $module) {
   if (!$field['settings']['views_base_table']) {
     return;
   }
-sdp(__FUNCTION__);
-sdp($field['settings'], 'settings');
-sdp($field['field_name'], 'field_name');
 
   $base_table = 'field_data_' . $field['field_name'];
   // @todo What about the revision table?
@@ -276,8 +273,6 @@ class views_field_join extends views_join {
 
     // This is all that differs from the parent function.
     $condition = $this->build_multi_join($table, $view_query);
-sdp(__FUNCTION__);
-sdp($condition, '$condition');
 
     $arguments = array();
 
