@@ -1,0 +1,10 @@
+; $Id: views_field.info,v 1.0 2011/01/22 07:00:00 solotandem Exp $
+name = Views Field
+description = Defines selected field tables as base tables to views.
+package = Fields
+version = VERSION
+core = 7.x
+dependencies[] = field
+dependencies[] = views
+;files[] = views_field.module
+;files[] = views_field.test

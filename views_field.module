@@ -1,0 +1,360 @@
+<?php
+// $Id: views_field.module,v 1.0 2011/01/22 07:00:00 solotandem Exp $
+
+/**
+ * @file
+ * Defines selected field tables as base tables to views.
+ *
+ * @author Jim Berry ("boombatower", http://drupal.org/user/240748)
+ */
+
+/**
+ * Implements hook_field_info_alter().
+ */
+function views_field_field_info_alter(&$info) {
+  // Add a setting to all field types.
+  foreach ($info as $field_type => $field_type_info) {
+    $info[$field_type]['settings'] += array(
+      'views_base_table' => FALSE,
+    );
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter(): field_ui_field_settings_form.
+ */
+function views_field_form_field_ui_field_settings_form_alter(&$form, &$form_state) {
+  $form['#field'] = field_info_field($form['field']['field_name']['#value']);
+  views_field_form_field_ui_field_edit_form_alter($form, $form_state);
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter(): field_ui_field_edit_form.
+ */
+function views_field_form_field_ui_field_edit_form_alter(&$form, &$form_state) {
+  $field = $form['#field'];
+  $settings = $field['settings'];
+
+  // Handle fields without existing settings.
+  if (isset($form['field']['settings']['#markup'])) {
+    $form['field']['settings'] = array();
+  }
+
+  // Allow user to expose this field to views as a base table.
+  $form['field']['settings']['views_base_table'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Expose as base table'),
+    '#default_value' => $settings['views_base_table'],
+    '#description' => t('Expose the storage table for this field to the Views module as a base table.'),
+  );
+}
+
+/**
+ * Implements hook_field_views_data_alter().
+ */
+function views_field_field_views_data_alter(&$data, $field, $module) {
+  if (!$field['settings']['views_base_table']) {
+    return;
+  }
+sdp(__FUNCTION__);
+sdp($field['settings'], 'settings');
+sdp($field['field_name'], 'field_name');
+
+  $base_table = 'field_data_' . $field['field_name'];
+  // @todo What about the revision table?
+
+  foreach ($data[$base_table] as $index => $old_item) {
+    if (in_array($index, array('table', 'entity_id'))) {
+      // We only want to modify the field "columns" like "value" and "format."
+      continue;
+    }
+
+    // Add a field handler to views field since the aliased field is not passed
+    // as $field to views_get_handler($table, $field, $key, $override = NULL).
+    // This has an unintended side effect of exposing the columns in the Views
+    // "Add fields" form.
+    $data[$base_table][$index]['field'] = array(
+      'handler' => 'views_handler_field',
+      'click sortable' => TRUE,
+    );
+
+    // Copy the views generated item.
+    $item = $old_item;
+    // Use "real field" with field columns so the base table can coexist with
+    // standard views "field API" field functionality.
+    $item['real field'] = $index;
+    $item['group'] = t('Field tables');
+    foreach (array('argument', 'filter', 'sort') as $type) {
+      // Remove the field API properties.
+      $handler = $item[$type]['handler'];
+      $item[$type] = array('handler' => $handler);
+      // @todo Maintain ['sort']['allow empty'] = 1?
+    }
+    // Make the column an official views field that may be selected in UI.
+    // @todo The need to set the views field above makes this unnecessary.
+    $item['field'] = array(
+      'handler' => 'views_handler_field',
+      'click sortable' => TRUE,
+    );
+    // Format the title for consistency with other columns.
+    $parts = explode(' - ', $item['title short']);
+    $item['title'] = $parts[0] . '=>' . (count($parts) > 1 ? ucfirst($parts[1]) : 'Value');
+    // Assign same short title to all field "columns"; only one is displayed.
+    $item['title short'] = $field['field_name'];
+    // Add the new data item.
+    $data[$base_table][$index . '_raw'] = $item;
+  }
+
+  // Declare a base table.
+//   $data[$base_table]['table']['group']  = t('Field tables');
+  $data[$base_table]['table']['base'] = array(
+    'field' => 'entity_id',
+    'title' => t($field['field_name']), // @todo Provide a capitalized string with no underscores.
+    'help' => t('Columns from the @field table.', array('@field' => $field['field_name'])),
+    'access query tag' => 'user_access', // @todo ???
+  );
+
+  // @todo Add a field setting for the columns to include.
+
+  // entity_id
+  $data[$base_table]['entity_id_raw'] = array(
+    'real field' => 'entity_id',
+    'group' => t('Field tables'),
+    'title' => $field['field_name'] . '=>' . t('Entity id'),
+    'title short' => t('Entity id'),
+    'help' => t('The entity id.'),
+    'field' => array(
+      'handler' => 'views_handler_field_numeric',
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_numeric',
+      'numeric' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_numeric',
+      'numeric' => TRUE,
+    ),
+  );
+
+  // bundle
+  $data[$base_table]['bundle'] = array(
+    'group' => t('Field tables'),
+    'title' => $field['field_name'] . '=>' . t('Bundle'),
+    'title short' => t('Bundle'),
+    'help' => t('The bundle this field is associated with.'),
+    'field' => array(
+      'handler' => 'views_handler_field',
+      'click sortable' => TRUE,
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_string',
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_string',
+      'help' => t('The bundle this field is associated with. This filter does not utilize autocomplete.')
+    ),
+    'sort' => array(
+      'handler' => 'views_handler_sort',
+    ),
+  );
+
+  // language
+  $data[$base_table]['language'] = array(
+    'group' => t('Field tables'),
+    'title' => $field['field_name'] . '=>' . t('Language'),
+    'title short' => t('Language'),
+    'help' => t('Language of the field value'),
+    'field' => array(
+      'handler' => 'views_handler_field_user_language', // @todo ???
+      'click sortable' => TRUE,
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_node_language', // @todo ???
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_node_language', // @todo ???
+    ),
+    'sort' => array(
+      'handler' => 'views_handler_sort',
+    ),
+  );
+
+  // delta
+  $data[$base_table]['delta'] = array(
+    'group' => t('Field tables'),
+    'title' => $field['field_name'] . '=>' . t('Delta'),
+    'title short' => t('Delta'),
+    'help' => t('The delta value (multiplicity).'),
+    'field' => array(
+      'handler' => 'views_handler_field_numeric',
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_numeric',
+      'numeric' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_numeric',
+      'numeric' => TRUE,
+    ),
+  );
+
+  // entity_type
+  $data[$base_table]['entity_type'] = array(
+    'group' => t('Field tables'),
+    'title' => $field['field_name'] . '=>' . t('Entity type'),
+    'title short' => t('Entity type'),
+    'help' => t('The entity type this field is attached to.'),
+    'field' => array(
+      'handler' => 'views_handler_field',
+      'click sortable' => TRUE,
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_string',
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_string',
+      'title' => $field['field_name'] . '=>' . t('Entity type'),
+      'help' => t('The entity type. This filter does not utilize autocomplete.')
+    ),
+    'sort' => array(
+      'handler' => 'views_handler_sort',
+    ),
+  );
+}
+
+/**
+ * Adds a multi-column join definition between two field tables using the primary key columns.
+ *
+ * @param array $data
+ *   The views data definition.
+ * @param string $base_field
+ *   The field table whose data definition is to be modified.
+ * @param string $join_field
+ *   The field table to join the base table to.
+ *   Note: when called by field_group_views, this should be the primary field.
+ */
+function views_field_add_multi_join(&$data, $base_field, $join_field) {
+  $data['field_data_' . $base_field]['table']['join']['field_data_' . $join_field] = array(
+    'handler' => 'views_field_join',
+    'left_field' => array('entity_type', 'entity_id', 'deleted', 'delta', 'language'),
+    'field' => array('entity_type', 'entity_id', 'deleted', 'delta', 'language'),
+    'type' => 'INNER',
+    'extra' => array(
+      array('field' => 'deleted', 'value' => 0, 'numeric' => TRUE),
+    ),
+  );
+}
+
+/**
+ * A function class to represent a  multi-column join and create the SQL necessary to implement the join.
+ *
+ * Modifications to join definition keys in parent class:
+ * - field: array of fields to join on (right field)
+ * - left_field: array of fields to join to (left field)
+ */
+class views_field_join extends views_join {
+
+  /**
+   * Build the SQL for the join this object represents.
+   *
+   * This is identical to parent method except for condition clause.
+   *
+   * @param $select_query
+   *   An implementation of SelectQueryInterface.
+   * @param $table
+   *   The base table to join.
+   * @param $view_query
+   *   The source query, implementation of views_plugin_query.
+   */
+  function build_join($select_query, $table, $view_query) {
+    if (empty($this->definition['table formula'])) {
+      $right_table = "{" . $this->table . "}";
+    }
+    else {
+      $right_table = $this->definition['table formula'];
+    }
+
+    // This is all that differs from the parent function.
+    $condition = $this->build_multi_join($table, $view_query);
+sdp(__FUNCTION__);
+sdp($condition, '$condition');
+
+    $arguments = array();
+
+    // Tack on the extra.
+    if (isset($this->extra)) {
+      if (is_array($this->extra)) {
+        $extras = array();
+        foreach ($this->extra as $info) {
+          $extra = '';
+          // Figure out the table name. Remember, only use aliases provided
+          // if at all possible.
+          $join_table = '';
+          if (!array_key_exists('table', $info)) {
+            $join_table = $table['alias'] . '.';
+          }
+          elseif (isset($info['table'])) {
+            $join_table = $info['table'] . '.';
+          }
+
+          $placeholder = ':views_join_condition_' . $select_query->nextPlaceholder();
+
+          if (is_array($info['value'])) {
+            $operator = !empty($info['operator']) ? $info['operator'] : 'IN';
+            // Transform from IN() notation to = notation if just one value.
+            if (count($info['value']) == 1) {
+              $info['value'] = array_shift($info['value']);
+              $operator = $operator == 'NOT IN' ? '!=' : '=';
+            }
+          }
+          else {
+            $operator = !empty($info['operator']) ? $info['operator'] : '=';
+          }
+
+          $extras[] = "$join_table$info[field] $operator $placeholder";
+          $arguments[$placeholder] = $info['value'];
+        }
+
+        if ($extras) {
+          if (count($extras) == 1) {
+            $condition .= ' AND ' . array_shift($extras);
+          }
+          else {
+            $condition .= ' AND (' . implode(' ' . $this->extra_type . ' ', $extras) . ')';
+          }
+        }
+      }
+      elseif ($this->extra && is_string($this->extra)) {
+        $condition .= " AND ($this->extra)";
+      }
+    }
+
+    $select_query->addJoin($this->type, $right_table, $table['alias'], $condition, $arguments);
+  }
+
+  function build_multi_join($table, $view_query) {
+    // Handle either join field not being an array.
+    // @todo Handle item counts not the same.
+    if (!is_array($this->left_field)) {
+      $this->left_field = array($this->left_field);
+    }
+    if (!is_array($this->field)) {
+      $this->field = array($this->field);
+    }
+
+    $conditions = array();
+    foreach ($this->left_field as $key => $left_field) {
+      if ($this->left_table) {
+        $left = $view_query->get_table_info($this->left_table);
+        $left_field = "$left[alias].$left_field";
+      }
+//       else {
+//         // This can be used if left_field is a formula or something. It should be used only *very* rarely.
+//         $left_field = $left_field;
+//       }
+
+      $conditions[] = "$left_field = $table[alias].{$this->field[$key]}";
+    }
+    return implode(' AND ', $conditions);
+  }
+}
