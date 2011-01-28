@@ -6,5 +6,5 @@ version = VERSION
 core = 7.x
 dependencies[] = field
 dependencies[] = views
-;files[] = views_field.module
+files[] = views_field.module
 ;files[] = views_field.test

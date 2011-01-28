@@ -82,10 +82,12 @@ function views_field_field_views_data_alter(&$data, $field, $module) {
     $item['real field'] = $index;
     $item['group'] = t('Field tables');
     foreach (array('argument', 'filter', 'sort') as $type) {
-      // Remove the field API properties.
-      $handler = $item[$type]['handler'];
-      $item[$type] = array('handler' => $handler);
-      // @todo Maintain ['sort']['allow empty'] = 1?
+      if (isset($item[$type])) {
+        // Remove the field API properties.
+        $handler = $item[$type]['handler'];
+        $item[$type] = array('handler' => $handler);
+        // @todo Maintain ['sort']['allow empty'] = 1?
+      }
     }
     // Make the column an official views field that may be selected in UI.
     // @todo The need to set the views field above makes this unnecessary.
