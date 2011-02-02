@@ -242,7 +242,7 @@ function views_field_field_views_data_alter(&$data, $field, $module) {
  *   Note: when called by field_group_views, this should be the primary field.
  */
 function views_field_add_multi_join(&$data, $base_field, $join_field) {
-  $join = array(
+  $data['field_data_' . $base_field]['table']['join']['field_data_' . $join_field] = array(
     'handler' => 'views_field_join',
     'left_field' => array('entity_type', 'entity_id', 'deleted', 'delta', 'language'),
     'field' => array('entity_type', 'entity_id', 'deleted', 'delta', 'language'),
@@ -251,8 +251,7 @@ function views_field_add_multi_join(&$data, $base_field, $join_field) {
       array('field' => 'deleted', 'value' => 0, 'numeric' => TRUE),
     ),
   );
-  drupal_alter('views_field_add_multi_join', $join, $base_field, $join_field);
-  $data['field_data_' . $base_field]['table']['join']['field_data_' . $join_field] = $join;
+  drupal_alter('views_field_add_multi_join', $data['field_data_' . $base_field]['table']['join']['field_data_' . $join_field], $base_field, $join_field);
 }
 
 /**
