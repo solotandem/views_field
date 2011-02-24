@@ -5,7 +5,7 @@
  * @file
  * Defines selected field tables as base tables to views.
  *
- * @author Jim Berry ("boombatower", http://drupal.org/user/240748)
+ * @author Jim Berry ("solotandem", http://drupal.org/user/240748)
  */
 
 /**
@@ -66,11 +66,26 @@ function views_field_field_views_data_alter(&$data, $field, $module) {
     return;
   }
 
-  $base_table = 'field_data_' . $field['field_name'];
-  // @todo What about the revision table?
+  $base_tables = array(
+    'field_data_' . $field['field_name'],
+    'field_revision_' . $field['field_name'],
+  );
+  foreach ($base_tables as $base_table) {
+    if (isset($data[$base_table])) {
+      views_field_add_base_table($data, $field, $module, $base_table);
+    }
+  }
+}
+
+/**
+ * Adds field table as base table to views.
+ */
+function views_field_add_base_table(&$data, $field, $module, $base_table) {
+  $is_revision = substr($base_table, 0, 15) == 'field_revision_';
+  $group = $is_revision ? t('Revision tables') : t('Field tables');
 
   foreach ($data[$base_table] as $index => $old_item) {
-    if (in_array($index, array('table', 'entity_id'))) {
+    if (in_array($index, array('table', 'entity_id', 'revision_id'))) {
       // We only want to modify the field "columns" like "value" and "format."
       continue;
     }
@@ -89,7 +104,7 @@ function views_field_field_views_data_alter(&$data, $field, $module) {
     // Use "real field" with field columns so the base table can coexist with
     // standard views "field API" field functionality.
     $item['real field'] = $index;
-    $item['group'] = t('Field tables');
+    $item['group'] = $group;
     foreach (array('argument', 'filter', 'sort') as $type) {
       if (isset($item[$type])) {
         // Remove the field API properties.
@@ -114,104 +129,24 @@ function views_field_field_views_data_alter(&$data, $field, $module) {
   }
 
   // Declare a base table.
+  $table_type = $is_revision ? ' (revision)' : '';
 //   $data[$base_table]['table']['group']  = t('Field tables');
+  // @todo With revision table, views does not join on entity_id, revision_id, and entity_type
   $data[$base_table]['table']['base'] = array(
-    'field' => 'entity_id',
-    'title' => t($field['field_name']), // @todo Provide a capitalized string with no underscores.
-    'help' => t('Columns from the @field table.', array('@field' => $field['field_name'])),
+    'field' => $is_revision ? 'revision_id' : 'entity_id',
+    'title' => t(str_replace('_', ' ', ucfirst($field['field_name'])) . $table_type),
+    'help' => t('Columns from the @field table.', array('@field' => $field['field_name'] . $table_type)),
     'access query tag' => 'user_access', // @todo ???
   );
 
   // @todo Add a field setting for the columns to include.
 
-  // entity_id
-  $data[$base_table]['entity_id_raw'] = array(
-    'real field' => 'entity_id',
-    'group' => t('Field tables'),
-    'title' => $field['field_name'] . '=>' . t('Entity id'),
-    'title short' => t('Entity id'),
-    'help' => t('The entity id.'),
-    'field' => array(
-      'handler' => 'views_handler_field_numeric',
-    ),
-    'argument' => array(
-      'handler' => 'views_handler_argument_numeric',
-      'numeric' => TRUE,
-    ),
-    'filter' => array(
-      'handler' => 'views_handler_filter_numeric',
-      'numeric' => TRUE,
-    ),
-  );
-
-  // bundle
-  $data[$base_table]['bundle'] = array(
-    'group' => t('Field tables'),
-    'title' => $field['field_name'] . '=>' . t('Bundle'),
-    'title short' => t('Bundle'),
-    'help' => t('The bundle this field is associated with.'),
-    'field' => array(
-      'handler' => 'views_handler_field',
-      'click sortable' => TRUE,
-    ),
-    'argument' => array(
-      'handler' => 'views_handler_argument_string',
-    ),
-    'filter' => array(
-      'handler' => 'views_handler_filter_string',
-      'help' => t('The bundle this field is associated with. This filter does not utilize autocomplete.')
-    ),
-    'sort' => array(
-      'handler' => 'views_handler_sort',
-    ),
-  );
-
-  // language
-  $data[$base_table]['language'] = array(
-    'group' => t('Field tables'),
-    'title' => $field['field_name'] . '=>' . t('Language'),
-    'title short' => t('Language'),
-    'help' => t('Language of the field value'),
-    'field' => array(
-      'handler' => 'views_handler_field_user_language', // @todo ???
-      'click sortable' => TRUE,
-    ),
-    'argument' => array(
-      'handler' => 'views_handler_argument_node_language', // @todo ???
-    ),
-    'filter' => array(
-      'handler' => 'views_handler_filter_node_language', // @todo ???
-    ),
-    'sort' => array(
-      'handler' => 'views_handler_sort',
-    ),
-  );
-
-  // delta
-  $data[$base_table]['delta'] = array(
-    'group' => t('Field tables'),
-    'title' => $field['field_name'] . '=>' . t('Delta'),
-    'title short' => t('Delta'),
-    'help' => t('The delta value (multiplicity).'),
-    'field' => array(
-      'handler' => 'views_handler_field_numeric',
-    ),
-    'argument' => array(
-      'handler' => 'views_handler_argument_numeric',
-      'numeric' => TRUE,
-    ),
-    'filter' => array(
-      'handler' => 'views_handler_filter_numeric',
-      'numeric' => TRUE,
-    ),
-  );
-
   // entity_type
   $data[$base_table]['entity_type'] = array(
-    'group' => t('Field tables'),
+    'group' => $group,
     'title' => $field['field_name'] . '=>' . t('Entity type'),
     'title short' => t('Entity type'),
-    'help' => t('The entity type this field is attached to.'),
+    'help' => t('The entity type this data is attached to.'),
     'field' => array(
       'handler' => 'views_handler_field',
       'click sortable' => TRUE,
@@ -228,6 +163,118 @@ function views_field_field_views_data_alter(&$data, $field, $module) {
       'handler' => 'views_handler_sort',
     ),
   );
+
+  // bundle
+  $data[$base_table]['bundle'] = array(
+    'group' => $group,
+    'title' => $field['field_name'] . '=>' . t('Bundle'),
+    'title short' => t('Bundle'),
+    'help' => t('The field instance bundle the data is associated with.'),
+    'field' => array(
+      'handler' => 'views_handler_field',
+      'click sortable' => TRUE,
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_string',
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_string',
+      'help' => t('The field instance bundle the data is associated with. This filter does not utilize autocomplete.')
+    ),
+    'sort' => array(
+      'handler' => 'views_handler_sort',
+    ),
+  );
+
+  // deleted
+  $data[$base_table]['deleted'] = array(
+    'group' => $group,
+    'title' => $field['field_name'] . '=>' . t('Deleted'),
+    'title short' => t('Deleted'),
+    'help' => t('A boolean indicating whether the data item has been deleted.'),
+    'field' => array(
+      'handler' => 'views_handler_field_numeric',
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_numeric',
+      'numeric' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_numeric',
+      'numeric' => TRUE,
+    ),
+  );
+
+  // Handle entity_id and revision_id.
+  $is_revision = substr($base_table, 0, 15) == 'field_revision_';
+  $id_fields = array('entity', 'revision');
+  foreach ($id_fields as $id_field) {
+    $is_raw = (!$is_revision && $id_field == 'entity') || ($is_revision && $id_field == 'revision');
+    $field_name_raw = $field_name = $id_field . '_id';
+    $field_name_raw .= $is_raw ? '_raw' : '';
+    $title = t(ucfirst($id_field . ' id'));
+    $data[$base_table][$field_name_raw] = array(
+      'real field' => $field_name, // @todo Is it harmful to declare this key when $field_name == $field_name_raw?
+      'group' => $group,
+      'title' => $field['field_name'] . '=>' . $title,
+      'title short' => $title,
+      'help' => t("The $id_field id."),
+      'field' => array(
+        'handler' => 'views_handler_field_numeric',
+      ),
+      'argument' => array(
+        'handler' => 'views_handler_argument_numeric',
+        'numeric' => TRUE,
+      ),
+      'filter' => array(
+        'handler' => 'views_handler_filter_numeric',
+        'numeric' => TRUE,
+      ),
+    );
+  }
+
+  // language
+  $data[$base_table]['language'] = array(
+    'group' => $group,
+    'title' => $field['field_name'] . '=>' . t('Language'),
+    'title short' => t('Language'),
+    'help' => t('The language of the data item'),
+    'field' => array(
+      'handler' => 'views_handler_field_user_language', // @todo ???
+      'click sortable' => TRUE,
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_node_language', // @todo ???
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_node_language', // @todo ???
+    ),
+    'sort' => array(
+      'handler' => 'views_handler_sort',
+    ),
+  );
+
+  // delta
+  // @todo Views defines this on the revision table -- change to raw
+  $field_name_raw = $is_revision ? 'delta_raw' : 'delta';
+  $data[$base_table][$field_name_raw] = array(
+    'real field' => 'delta',
+    'group' => $group,
+    'title' => $field['field_name'] . '=>' . t('Delta'),
+    'title short' => t('Delta'),
+    'help' => t('The sequence number of the data item (multi-value fields).'),
+    'field' => array(
+      'handler' => 'views_handler_field_numeric',
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_numeric',
+      'numeric' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_numeric',
+      'numeric' => TRUE,
+    ),
+  );
 }
 
 /**
@@ -236,22 +283,48 @@ function views_field_field_views_data_alter(&$data, $field, $module) {
  * @param array $data
  *   The views data definition.
  * @param string $base_field
- *   The field table whose data definition is to be modified.
+ *   Together with $base_type, this defines the base table whose data definition
+ *   is to be modified.
  * @param string $join_field
- *   The field table to join the base table to.
+ *   Together with $base_type, this defines the table to join the base table to.
  *   Note: when called by field_group_views, this should be the primary field.
+ * @param string $base_type
+ *   The prefix applied to $base_field and $join_field to determine the base and
+ *   join tables. Allowed values are 'field_data' and 'field_revision.'
  */
-function views_field_add_multi_join(&$data, $base_field, $join_field) {
-  $data['field_data_' . $base_field]['table']['join']['field_data_' . $join_field] = array(
+function views_field_add_multi_join(&$data, $base_field, $join_field, $base_type = 'field_data') {
+  if ($base_type != 'field_data' && $base_type != 'field_revision') {
+    return;
+  }
+
+  $base_table = $base_type . '_' . $base_field;
+  $join_table = $base_type . '_' . $join_field;
+  if (!isset($data[$base_table])) {
+    return;
+  }
+
+  // The primary key columns of a field table.
+  $fields = drupal_map_assoc(array('entity_type', 'entity_id', 'revision_id', 'deleted', 'delta', 'language'));
+  if ($base_type == 'field_data') {
+    unset($fields['revision_id']);
+  }
+  // Define the join.
+  $data[$base_table]['table']['join'][$join_table] = array(
     'handler' => 'views_field_join',
-    'left_field' => array('entity_type', 'entity_id', 'deleted', 'delta', 'language'),
-    'field' => array('entity_type', 'entity_id', 'deleted', 'delta', 'language'),
+    'left_field' => $fields,
+    'field' => $fields,
     'type' => 'INNER',
     'extra' => array(
       array('field' => 'deleted', 'value' => 0, 'numeric' => TRUE),
     ),
   );
-  drupal_alter('views_field_add_multi_join', $data['field_data_' . $base_field]['table']['join']['field_data_' . $join_field], $base_field, $join_field);
+  // Only expose the join definition to alteration.
+  $context = array(
+    'base_field' => $base_field,
+    'join_field' => $join_field,
+    'base_type' => $base_type,
+  );
+  drupal_alter('views_field_add_multi_join', $data[$base_table]['table']['join'][$join_table], $context);
 }
 
 /**
