@@ -120,17 +120,19 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
       'click sortable' => TRUE,
     );
     // Format the title for consistency with other columns.
+    // Include the column name for clarity.
     $parts = explode(' - ', $item['title short']);
-    $item['title'] = $parts[0] . '=>' . (count($parts) > 1 ? ucfirst($parts[1]) : 'Value');
-    // Assign same short title to all field "columns"; only one is displayed.
-    $item['title short'] = $field['field_name'];
+    $item['title'] = $parts[0] . ' => ' . (count($parts) > 1 ? ucfirst($parts[1]) : 'Value');
+    $item['title'] = t($item['title']);
+    $item['title short'] = $item['title'];
     // Add the new data item.
     $data[$base_table][$index . '_raw'] = $item;
   }
 
   // Declare a base table.
   $table_type = $is_revision ? ' (revision)' : '';
-//   $data[$base_table]['table']['group']  = t('Field tables');
+  // We don't want to set group at the table level, like this:
+  // $data[$base_table]['table']['group']  = t('Field tables');
   // @todo With revision table, views does not join on entity_id, revision_id, and entity_type
   $data[$base_table]['table']['base'] = array(
     'field' => $is_revision ? 'revision_id' : 'entity_id',
@@ -142,10 +144,11 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
   // @todo Add a field setting for the columns to include.
 
   // entity_type
+  $title = $field['field_name'] . ' => ' . t('Entity type');
   $data[$base_table]['entity_type'] = array(
     'group' => $group,
-    'title' => $field['field_name'] . '=>' . t('Entity type'),
-    'title short' => t('Entity type'),
+    'title' => $title,
+    'title short' => $title,
     'help' => t('The entity type this data is attached to.'),
     'field' => array(
       'handler' => 'views_handler_field',
@@ -156,7 +159,7 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
     ),
     'filter' => array(
       'handler' => 'views_handler_filter_string',
-      'title' => $field['field_name'] . '=>' . t('Entity type'),
+      'title' => $title, // @todo Why only set title on this item?
       'help' => t('The entity type. This filter does not utilize autocomplete.')
     ),
     'sort' => array(
@@ -165,10 +168,11 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
   );
 
   // bundle
+  $title = $field['field_name'] . ' => ' . t('Bundle');
   $data[$base_table]['bundle'] = array(
     'group' => $group,
-    'title' => $field['field_name'] . '=>' . t('Bundle'),
-    'title short' => t('Bundle'),
+    'title' => $title,
+    'title short' => $title,
     'help' => t('The field instance bundle the data is associated with.'),
     'field' => array(
       'handler' => 'views_handler_field',
@@ -187,10 +191,11 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
   );
 
   // deleted
+  $title = $field['field_name'] . ' => ' . t('Deleted');
   $data[$base_table]['deleted'] = array(
     'group' => $group,
-    'title' => $field['field_name'] . '=>' . t('Deleted'),
-    'title short' => t('Deleted'),
+    'title' => $title,
+    'title short' => $title,
     'help' => t('A boolean indicating whether the data item has been deleted.'),
     'field' => array(
       'handler' => 'views_handler_field_numeric',
@@ -209,14 +214,17 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
   $is_revision = substr($base_table, 0, 15) == 'field_revision_';
   $id_fields = array('entity', 'revision');
   foreach ($id_fields as $id_field) {
+    $title = $field['field_name'] . ' => ' . t(ucfirst($id_field . ' id'));
+    // @todo Is this as simple as checking isset($data[$base_table][$field_name])?
     $is_raw = (!$is_revision && $id_field == 'entity') || ($is_revision && $id_field == 'revision');
     $field_name_raw = $field_name = $id_field . '_id';
     $field_name_raw .= $is_raw ? '_raw' : '';
-    $title = t(ucfirst($id_field . ' id'));
     $data[$base_table][$field_name_raw] = array(
       'real field' => $field_name, // @todo Is it harmful to declare this key when $field_name == $field_name_raw?
       'group' => $group,
-      'title' => $field['field_name'] . '=>' . $title,
+      'title' => $title,
+      'title short' => $title,
+      'title' => $title,
       'title short' => $title,
       'help' => t("The $id_field id."),
       'field' => array(
@@ -234,10 +242,11 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
   }
 
   // language
+  $title = $field['field_name'] . ' => ' . t('Language');
   $data[$base_table]['language'] = array(
     'group' => $group,
-    'title' => $field['field_name'] . '=>' . t('Language'),
-    'title short' => t('Language'),
+    'title' => $title,
+    'title short' => $title,
     'help' => t('The language of the data item'),
     'field' => array(
       'handler' => 'views_handler_field_user_language', // @todo ???
@@ -255,13 +264,14 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
   );
 
   // delta
-  // @todo Views defines this on the revision table -- change to raw
-  $field_name_raw = $is_revision ? 'delta_raw' : 'delta';
+  $title = $field['field_name'] . ' => ' . t('Delta');
+  // Views defines this field if multiplicity != 1.
+  $field_name_raw = isset($data[$base_table]['delta']) ? 'delta_raw' : 'delta';
   $data[$base_table][$field_name_raw] = array(
     'real field' => 'delta',
     'group' => $group,
-    'title' => $field['field_name'] . '=>' . t('Delta'),
-    'title short' => t('Delta'),
+    'title' => $title,
+    'title short' => $title,
     'help' => t('The sequence number of the data item (multi-value fields).'),
     'field' => array(
       'handler' => 'views_handler_field_numeric',
@@ -273,6 +283,9 @@ function views_field_add_base_table(&$data, $field, $module, $base_table) {
     'filter' => array(
       'handler' => 'views_handler_filter_numeric',
       'numeric' => TRUE,
+    ),
+    'sort' => array(
+      'handler' => 'views_handler_sort',
     ),
   );
 }
@@ -305,7 +318,7 @@ function views_field_add_multi_join(&$data, $base_field, $join_field, $base_type
 
   // The primary key columns of a field table.
   $fields = drupal_map_assoc(array('entity_type', 'entity_id', 'revision_id', 'deleted', 'delta', 'language'));
-  if ($base_type == 'field_data') {
+  if ($base_type == 'field_data' || !isset($data[$base_table]['revision_id'])) {
     unset($fields['revision_id']);
   }
   // Define the join.
